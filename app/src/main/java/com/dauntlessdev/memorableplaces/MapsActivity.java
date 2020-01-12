@@ -8,6 +8,7 @@ import androidx.fragment.app.FragmentActivity;
 import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Address;
 import android.location.Geocoder;
@@ -41,6 +42,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     LocationListener locationListener;
     Marker locationMarker;
     LatLng currentLocation;
+    SharedPreferences sharedPreferences;
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
@@ -62,7 +64,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
-        mapFragment.getMapAsync(this);
+        if (mapFragment != null) {
+            mapFragment.getMapAsync(this);
+        }
+
+        Log.i("ContextMap",this.toString());
+        sharedPreferences = this.getSharedPreferences("com.dauntlessdev.memorableplaces", Context.MODE_PRIVATE);
         locationManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
         locationListener = new LocationListener() {
             @Override
@@ -102,8 +109,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         Intent intent = getIntent();
         int position = intent.getIntExtra("Key",0);
         if(MainActivity.currentMemorableList!=null && MainActivity.currentMemorableList.size() > 0){
-            for(Address each: MainActivity.currentMemorableList){
-                mMap.addMarker(new MarkerOptions().position(new LatLng(each.getLatitude(),each.getLongitude())).title(each.getThoroughfare()));
+            for(int i =0; i < MainActivity.currentMemorableList.size(); i++){
+                mMap.addMarker(new MarkerOptions().position(new LatLng(MainActivity.currentMemorableList.get(i).latitude,MainActivity.currentMemorableList.get(i).longitude)).title(MainActivity.addressMainList.get(i+1)));
             }
         }
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -113,7 +120,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         currentLocation = new LatLng(lastKnownLocation.getLatitude()  , lastKnownLocation.getLongitude());
         if(position!=0){
             position--;
-            currentLocation = new LatLng(MainActivity.currentMemorableList.get(position).getLatitude()  , MainActivity.currentMemorableList.get(position).getLongitude());
+            currentLocation = new LatLng(MainActivity.currentMemorableList.get(position).latitude  , MainActivity.currentMemorableList.get(position).longitude);
         }
         locationMarker = mMap.addMarker(new MarkerOptions().position(currentLocation).title("Your Location"));
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(currentLocation, 10));
@@ -125,7 +132,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 try {
                     List<Address> addressList = geocoder.getFromLocation(latLng.latitude, latLng.longitude, 1);
                     if(addressList.size() > 0){
-                        String locationName = "";
+                        String locationName ;
                         if(addressList.get(0).getThoroughfare()!= null){
                             mMap.addMarker(new MarkerOptions().position(latLng).title(addressList.get(0).getThoroughfare()));
                             locationName = addressList.get(0).getThoroughfare();
@@ -134,11 +141,22 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                             locationName = Calendar.getInstance().getTime().toString();
                         }
 
-                        MainActivity.currentMemorableList.add(addressList.get(0));
+                        MainActivity.currentMemorableList.add(new LatLng(addressList.get(0).getLatitude(),addressList.get(0).getLongitude()));
                         Toast.makeText(MapsActivity.this, "Location Saved!", Toast.LENGTH_SHORT).show();
 
                         MainActivity.addressMainList.add(locationName);
                         MainActivity.arrayAdapter.notifyDataSetChanged();
+
+                        ArrayList<String> latitudeList = new ArrayList<>();
+                        ArrayList<String> longitudeList = new ArrayList<>();
+                        for (Address latlng : addressList){
+                            latitudeList.add(String.valueOf(latlng.getLatitude()));
+                            longitudeList.add(String.valueOf(latlng.getLongitude()));
+                        }
+                        sharedPreferences.edit().putString("places", ObjectSerializer.serialize(MainActivity.addressMainList)).apply();
+                        sharedPreferences.edit().putString("latitude", ObjectSerializer.serialize(latitudeList)).apply();
+                        sharedPreferences.edit().putString("longitude", ObjectSerializer.serialize(longitudeList)).apply();
+
 
                     }
                 } catch (IOException e) {
